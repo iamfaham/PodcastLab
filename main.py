@@ -1,5 +1,7 @@
 import os
 import time
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from io import BytesIO
@@ -174,6 +176,31 @@ class PodcastAgent:
                 time.sleep(10)
                 operation = self.client.operations.get(operation)
 
+            # Check if the operation was successful
+            if not operation.done:
+                raise Exception("Video generation operation did not complete")
+
+            logger.info(f"Operation completed. Response: {operation.response}")
+
+            if not operation.response:
+                raise Exception(
+                    "Video generation operation completed but no response received"
+                )
+
+            if not hasattr(operation.response, "generated_videos"):
+                raise Exception(
+                    f"Video generation response missing 'generated_videos' attribute. Response: {operation.response}"
+                )
+
+            if not operation.response.generated_videos:
+                raise Exception(
+                    "Video generation operation completed but no videos were generated"
+                )
+
+            logger.info(
+                f"Found {len(operation.response.generated_videos)} generated videos"
+            )
+
             # Download the generated video
             generated_video = operation.response.generated_videos[0]
             self.client.files.download(file=generated_video.video)
@@ -207,33 +234,31 @@ class PodcastAgent:
         """
         logger.info(f"Creating complete podcast episode for topic: '{topic}'")
 
-        # Create output directory
-        output_path = Path(output_dir)
-        output_path.mkdir(exist_ok=True)
+        # Create timestamped subfolder with unique ID
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]  # First 8 characters of UUID
+        subfolder_name = f"{timestamp}_{unique_id}"
+
+        output_path = Path(output_dir) / subfolder_name
+        output_path.mkdir(parents=True, exist_ok=True)
 
         try:
             # Step 1: Generate podcast image
             logger.info("Step 1/3: Generating podcast image...")
             image = self.generate_podcast_image(custom_image_prompt)
-            image_path = (
-                output_path / f"podcast_image_{topic.replace(' ', '_').lower()}.png"
-            )
+            image_path = output_path / "podcast_image.png"
             image.save(image_path)
 
             # Step 2: Generate podcast script
             logger.info("Step 2/3: Generating podcast script...")
             script = self.generate_podcast_script(topic)
-            script_path = (
-                output_path / f"podcast_script_{topic.replace(' ', '_').lower()}.txt"
-            )
+            script_path = output_path / "podcast_script.txt"
             with open(script_path, "w", encoding="utf-8") as f:
                 f.write(script)
 
             # Step 3: Generate podcast video
             logger.info("Step 3/3: Generating podcast video...")
-            video_filename = (
-                output_path / f"podcast_video_{topic.replace(' ', '_').lower()}.mp4"
-            )
+            video_filename = output_path / "podcast_video.mp4"
             video_path = self.generate_podcast_video(
                 script=script, image=image, output_filename=str(video_filename)
             )
@@ -247,7 +272,7 @@ class PodcastAgent:
             }
 
             logger.success(
-                f"Podcast episode created successfully! Files saved in: {output_path}"
+                f"Podcast episode created successfully! Files saved in: {output_path} (subfolder: {subfolder_name})"
             )
             return result
 

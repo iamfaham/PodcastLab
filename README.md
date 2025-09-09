@@ -1,4 +1,4 @@
-# 🎙️ Podcast Creator Agent
+# 🎙️ Podcast Lab (Podcast Creator Agent)
 
 An AI-powered podcast creator that uses Google's cutting-edge AI models to generate complete podcast episodes with images, scripts, and videos.
 
@@ -21,14 +21,14 @@ An AI-powered podcast creator that uses Google's cutting-edge AI models to gener
 1. Clone the repository:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/iamfaham/PodcastLab
 cd podcast-agent
 ```
 
 2. Install dependencies:
 
 ```bash
-pip install -e .
+pip install -r requirements.txt
 ```
 
 3. Set up your API key:
@@ -64,6 +64,30 @@ print(f"- Video: {result['video_path']}")
 # Run the example
 python main.py
 ```
+
+### Streamlit Web Interface
+
+For a user-friendly web interface, use the Streamlit app:
+
+```bash
+# Install Streamlit if not already installed
+pip install streamlit
+
+# Run the Streamlit app
+streamlit run streamlit_app.py
+
+# Or use the convenience script
+python run_streamlit.py
+```
+
+The web interface provides:
+
+- 🎯 Simple topic input
+- 📊 Real-time progress tracking
+- 🖼️ Image preview
+- 📝 Script display
+- 🎬 Video player
+- 📥 Download buttons for all generated files
 
 ## 📖 API Reference
 
