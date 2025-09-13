@@ -1,259 +1,64 @@
-# 🎙️ PodcastLab (Podcast Creator Agent)
+---
+title: PodcastLab
+emoji: 🎙️
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+license: mit
+app_port: 7860
+---
 
-A Multi-agentic, AI-powered video podcast creator system that uses Google's cutting-edge AI models to generate complete podcast episodes with just the topic.
+# PodcastLab - AI-Powered Podcast Creator
 
-## ✨ Features
+🎙️ **Create professional podcasts with AI using Google's Imagen, Gemini, and Veo models**
 
-- **🖼️ Image Generation**: Creates professional podcast studio photos using Google's Imagen
-- **📝 Script Generation**: Generates engaging podcast scripts using Gemini AI
-- **🎬 Video Generation**: Produces 8-second podcast videos using Google's Veo 3
-- **🔄 Complete Workflow**: Seamlessly integrates all three models for end-to-end podcast creation
+## Features
 
-## 🚀 Quick Start
+- **AI-Generated Content**: Create engaging podcast scripts using Google's Gemini AI
+- **Visual Storytelling**: Generate custom podcast cover images with Google's Imagen
+- **Video Podcasts**: Create video podcasts using Google's Veo model
+- **Professional Quality**: High-quality audio and video output
+- **Easy to Use**: Simple Streamlit interface for seamless podcast creation
 
-### Prerequisites
+## How to Use
 
-- Python 3.11 or higher
-- Google AI API key (get yours at [ai.google.dev](https://ai.google.dev/))
+1. **Enter Your Topic**: Input any topic you want to create a podcast about
+2. **Configure Settings**: Choose the number of parts, duration, and other preferences
+3. **Generate Content**: Let AI create the script, images, and video content
+4. **Download Results**: Get your complete podcast package ready for publishing
 
-### Installation
+## Requirements
 
-1. Clone the repository:
+- Google AI API Key (set as `GOOGLE_AI_API_KEY` environment variable)
+- Internet connection for AI model access
 
-```bash
-git clone https://github.com/iamfaham/PodcastLab
-cd PodcastLab
-```
+## Environment Variables
 
-2. Install dependencies:
+Make sure to set the following environment variable in your Hugging Face Space:
 
-```bash
-pip install -r requirements.txt
-```
+- `GOOGLE_AI_API_KEY`: Your Google AI API key for accessing Gemini, Imagen, and Veo models
 
-3. Set up your API key:
+## Getting Your API Key
 
-```bash
-# Option 1: Environment variable
-export GOOGLE_AI_API_KEY="your_api_key_here"
-export GEMINI_MODEL="gemini_model_name"
-export IMAGEN_MODEL="imagen_model_name"
-export VEO_MODEL="veo_model_name"
+1. Visit [Google AI Studio](https://aistudio.google.com/)
+2. Sign in with your Google account
+3. Navigate to the API section
+4. Create a new API key
+5. Copy the key and add it to your Hugging Face Space environment variables
 
-# Option 2: Create a .env file
-echo "GOOGLE_AI_API_KEY=your_api_key_here" > .env
-echo "GEMINI_MODEL=gemini_model_name" > .env
-echo "IMAGEN_MODEL=imagen_model_name" > .env
-echo "VEO_MODEL=veo_model_name" > .env
-```
+## Technical Details
 
-### Basic Usage
+- **Framework**: Streamlit
+- **AI Models**: Google Gemini, Imagen, Veo
+- **Video Processing**: MoviePy
+- **Image Processing**: Pillow
+- **Deployment**: Docker on Hugging Face Spaces
 
-```python
-from main import PodcastAgent
+## License
 
-# Initialize the agent
-agent = PodcastAgent()
+MIT License - feel free to use and modify for your projects!
 
-# Create a complete podcast episode
-result = agent.create_podcast_episode("The Future of Artificial Intelligence")
+---
 
-print(f"Generated files:")
-print(f"- Image: {result['image_path']}")
-print(f"- Script: {result['script_path']}")
-print(f"- Video: {result['video_path']}")
-```
-
-### Command Line Usage
-
-```bash
-# Run the example
-python main.py
-```
-
-### Streamlit Web Interface
-
-For a user-friendly web interface, use the Streamlit app:
-
-```bash
-# Install Streamlit if not already installed
-pip install streamlit
-
-# Run the Streamlit app
-streamlit run streamlit_app.py
-
-# Or use the convenience script
-python run_streamlit.py
-```
-
-The web interface provides:
-
-- 🎯 Simple topic input
-- 📊 Real-time progress tracking
-- 🖼️ Image preview
-- 📝 Script display
-- 🎬 Video player
-- 📥 Download buttons for all generated files
-
-## 📖 API Reference
-
-### PodcastAgent Class
-
-#### `__init__(api_key: Optional[str] = None)`
-
-Initialize the podcast agent with your Google AI API key.
-
-#### `generate_podcast_image(custom_prompt: Optional[str] = None) -> Image.Image`
-
-Generate a professional podcast studio image using Imagen.
-
-**Parameters:**
-
-- `custom_prompt`: Optional custom prompt for image generation
-
-**Returns:** PIL Image object
-
-#### `generate_podcast_script(topic: str) -> str`
-
-Generate an 8-second podcast script using Gemini.
-
-**Parameters:**
-
-- `topic`: The topic for the podcast episode
-
-**Returns:** Generated script text
-
-#### `generate_podcast_video(script: str, image: Optional[Image.Image] = None, output_filename: str = "podcast_video.mp4") -> str`
-
-Generate a podcast video using Veo 3.
-
-**Parameters:**
-
-- `script`: The podcast script to base the video on
-- `image`: Optional starting image for the video
-- `output_filename`: Name of the output video file
-
-**Returns:** Path to the generated video file
-
-#### `create_podcast_episode(topic: str, output_dir: str = "output", custom_image_prompt: Optional[str] = None) -> dict`
-
-Create a complete podcast episode with image, script, and video.
-
-**Parameters:**
-
-- `topic`: The topic for the podcast episode
-- `output_dir`: Directory to save output files
-- `custom_image_prompt`: Optional custom prompt for image generation
-
-**Returns:** Dictionary with paths to generated files and metadata
-
-## 🎯 Examples
-
-### Custom Image Prompt
-
-```python
-agent = PodcastAgent()
-
-# Use a custom image prompt
-custom_prompt = "Two tech entrepreneurs discussing AI in a futuristic podcast studio with holographic displays"
-
-result = agent.create_podcast_episode(
-    topic="AI in Business",
-    custom_image_prompt=custom_prompt
-)
-```
-
-### Individual Components
-
-```python
-agent = PodcastAgent()
-
-# Generate just an image
-image = agent.generate_podcast_image()
-image.show()
-
-# Generate just a script
-script = agent.generate_podcast_script("Climate Change Solutions")
-print(script)
-
-# Generate just a video
-video_path = agent.generate_podcast_video(script, image)
-print(f"Video saved to: {video_path}")
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-- `GOOGLE_AI_API_KEY`: Your Google AI API key (required)
-- `GEMINI_MODEL`: Gemini model name (required)
-- `IMAGEN_MODEL`: Imagen model name (required)
-- `VEO_MODEL`: Veo model name (required)
-
-### Model Configuration
-
-I suggest tu use the following Google AI models:
-
-- **Imagen**: `imagen-3.0-generate-002` for image generation
-- **Gemini**: `gemini-2.5-flash-exp` for script generation
-- **Veo**: `veo-3.0-generate-preview` for video generation
-
-## 📁 Output Structure
-
-Generated files are organized in timestamped subfolders with unique identifiers:
-
-```
-output/
-└── 20240908_142530_a1b2c3d4/     # Timestamped folder (YYYYMMDD_HHMMSS_UUID)
-    ├── podcast_image.png          # Generated podcast studio image
-    ├── podcast_script.txt         # Generated podcast script
-    └── podcast_video.mp4          # Generated podcast video
-```
-
-**Folder Naming:**
-
-- **Format**: `YYYYMMDD_HHMMSS_XXXXXXXX`
-- **Timestamp**: When the generation started
-- **Unique ID**: First 8 characters of UUID to ensure uniqueness
-- **Benefits**: No file conflicts, easy organization, chronological sorting
-
-## ⚠️ Limitations
-
-- **Video Length**: Maximum 8 seconds (Veo 3 limitation)
-- **Generation Time**: Video generation can take 11 seconds to 6 minutes
-- **API Costs**: Each generation uses API credits (~ $4/complete run)
-- **File Retention**: Generated videos are stored on Google's servers for 2 days
-
-## 🛠️ Technical Details
-
-### Dependencies
-
-- `google-genai>=0.8.0`: Google AI SDK
-- `pillow>=10.0.0`: Image processing
-- `python-dotenv>=1.0.0`: Environment variable management
-- `loguru>=0.7.0`: Logging
-- `streamlit>=1.49.1`: User Interface
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📞 Support
-
-For issues and questions:
-
-1. Check the [Google AI documentation](https://ai.google.dev/gemini-api/docs)
-2. Review the error logs generated by the agent
-3. Ensure your API key has the necessary permissions
-4. Still not resovled? Open an issue on GitHub.
-
-## 🔗 Related Links
-
-- [Google AI for Developers](https://ai.google.dev/)
-- [Imagen API Documentation](https://ai.google.dev/gemini-api/docs/imagen)
-- [Veo API Documentation](https://ai.google.dev/gemini-api/docs/video)
-- [Gemini API Documentation](https://ai.google.dev/gemini-api/docs)
+**Note**: This application requires a valid Google AI API key to function. The key is not included in the repository for security reasons.

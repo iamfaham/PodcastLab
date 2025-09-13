@@ -39,14 +39,18 @@ RUN mkdir -p output
 # Expose the port that Streamlit runs on
 EXPOSE 7860
 
-# Set environment variables
+# Set environment variables for Hugging Face Spaces
 ENV STREAMLIT_SERVER_PORT=7860
 ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
 ENV STREAMLIT_SERVER_HEADLESS=true
 ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+ENV STREAMLIT_SERVER_ENABLE_CORS=false
+ENV STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
+ENV STREAMLIT_SERVER_RUN_ON_SAVE=false
+ENV STREAMLIT_SERVER_FILE_WATCHER_TYPE=none
 
-# # Health check
-# HEALTHCHECK CMD curl --fail http://localhost:7860/_stcore/health
+# Health check for Hugging Face Spaces
+HEALTHCHECK CMD curl --fail http://localhost:7860/_stcore/health
 
 # Run the Streamlit app
 CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.address=0.0.0.0"]

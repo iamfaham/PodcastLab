@@ -1,0 +1,17 @@
+[server]
+port = 7860
+address = "0.0.0.0"
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+runOnSave = false
+fileWatcherType = "none"
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#667eea"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f2f6"
+textColor = "#262730"
