@@ -80,23 +80,25 @@ class PodcastAgent:
             logger.error(f"Failed to generate podcast image: {e}")
             raise
 
-    def generate_podcast_script(self, topic: str) -> str:
-        """Generate a podcast script using Gemini.
+    def generate_podcast_script(self, topic: str) -> list[str]:
+        """Generate a podcast script with 3 parts using Gemini.
 
         Args:
             topic: The topic for the podcast episode.
 
         Returns:
-            Generated script text optimized for 8-second video.
+            List of 3 script parts, each optimized for 8-second video segments.
         """
         prompt = (
-            f"Write a brief, engaging podcast script about '{topic}' that is suitable for an 8-second video. "
+            f"Write an engaging podcast script about '{topic}' that is divided into exactly 3 parts, "
+            f"each suitable for an 8-second video segment (24 seconds total). "
             f"The script should be conversational, mention the topic clearly, and sound natural when spoken. "
-            f"Include dialogue for two podcast hosts. Keep it concise but compelling. "
-            f"Format it as natural speech that would work well with video narration."
+            f"Include dialogue for two podcast hosts. Each part should flow naturally into the next. "
+            f"Format the response as exactly 3 parts separated by '---PART---' markers. "
+            f"Each part should be compelling and work well with video narration."
         )
 
-        logger.info(f"Generating podcast script for topic: {topic}")
+        logger.info(f"Generating 3-part podcast script for topic: {topic}")
 
         try:
             response = self.client.models.generate_content(
@@ -104,15 +106,43 @@ class PodcastAgent:
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.7,
-                    max_output_tokens=200,
+                    max_output_tokens=600,
                 ),
             )
 
-            script = response.text.strip()
+            full_script = response.text.strip()
+
+            # Split the script into 3 parts
+            parts = full_script.split("---PART---")
+            if len(parts) != 3:
+                # Fallback: try to split by double newlines or other separators
+                parts = [
+                    part.strip() for part in full_script.split("\n\n") if part.strip()
+                ]
+                if len(parts) < 3:
+                    # If still not 3 parts, create equal divisions
+                    words = full_script.split()
+                    words_per_part = len(words) // 3
+                    parts = [
+                        " ".join(words[:words_per_part]),
+                        " ".join(words[words_per_part : words_per_part * 2]),
+                        " ".join(words[words_per_part * 2 :]),
+                    ]
+                elif len(parts) > 3:
+                    # If more than 3 parts, combine the extras
+                    parts = [parts[0], parts[1], " ".join(parts[2:])]
+
+            # Ensure we have exactly 3 parts
+            while len(parts) < 3:
+                parts.append("")
+
+            parts = parts[:3]  # Take only first 3 parts
+            parts = [part.strip() for part in parts]
+
             logger.success(
-                f"Podcast script generated successfully: {len(script)} characters"
+                f"Podcast script generated successfully: 3 parts, {sum(len(part) for part in parts)} total characters"
             )
-            return script
+            return parts
 
         except Exception as e:
             logger.error(f"Failed to generate podcast script: {e}")
@@ -124,7 +154,7 @@ class PodcastAgent:
         image: Optional[Image.Image] = None,
         output_filename: str = "podcast_video.mp4",
     ) -> str:
-        """Generate a podcast video using Veo.
+        """Generate a single podcast video using Veo.
 
         Args:
             script: The podcast script to base the video on.
@@ -216,13 +246,107 @@ class PodcastAgent:
             logger.error(f"Failed to generate podcast video: {e}")
             raise
 
+    def generate_multiple_podcast_videos(
+        self,
+        script_parts: list[str],
+        image: Optional[Image.Image] = None,
+        output_dir: str = "output",
+    ) -> list[str]:
+        """Generate multiple podcast videos from script parts.
+
+        Args:
+            script_parts: List of script parts for each video segment.
+            image: Optional starting image for the videos.
+            output_dir: Directory to save the video files.
+
+        Returns:
+            List of paths to the generated video files.
+        """
+        video_paths = []
+        output_path = Path(output_dir)
+
+        for i, script_part in enumerate(script_parts, 1):
+            logger.info(f"Generating video segment {i}/{len(script_parts)}")
+            video_filename = output_path / f"podcast_video_part_{i}.mp4"
+
+            try:
+                video_path = self.generate_podcast_video(
+                    script=script_part, image=image, output_filename=str(video_filename)
+                )
+                video_paths.append(video_path)
+                logger.success(f"Video segment {i} completed: {video_path}")
+            except Exception as e:
+                logger.error(f"Failed to generate video segment {i}: {e}")
+                raise
+
+        return video_paths
+
+    def combine_videos(self, video_paths: list[str], output_filename: str) -> str:
+        """Combine multiple video files into one using moviepy.
+
+        Args:
+            video_paths: List of paths to video files to combine.
+            output_filename: Path for the combined video file.
+
+        Returns:
+            Path to the combined video file.
+        """
+        try:
+            from moviepy import VideoFileClip, concatenate_videoclips
+
+            logger.info(f"Combining {len(video_paths)} videos into one")
+
+            # Load video clips
+            clips = []
+            for video_path in video_paths:
+                if os.path.exists(video_path):
+                    clip = VideoFileClip(video_path)
+                    clips.append(clip)
+                    logger.info(f"Loaded video: {video_path}")
+                else:
+                    logger.warning(f"Video file not found: {video_path}")
+
+            if not clips:
+                raise Exception("No valid video clips found to combine")
+
+            # Concatenate videos
+            final_clip = concatenate_videoclips(clips)
+
+            # Write the combined video
+            final_clip.write_videofile(
+                output_filename,
+                codec="libx264",
+                audio_codec="aac",
+                temp_audiofile="temp-audio.m4a",
+                remove_temp=True,
+            )
+
+            # Close clips to free memory
+            for clip in clips:
+                clip.close()
+            final_clip.close()
+
+            logger.success(f"Videos combined successfully: {output_filename}")
+            return output_filename
+
+        except ImportError:
+            logger.error(
+                "moviepy is required for video combining. Install with: pip install moviepy"
+            )
+            raise Exception(
+                "moviepy is required for video combining. Please install it with: pip install moviepy"
+            )
+        except Exception as e:
+            logger.error(f"Failed to combine videos: {e}")
+            raise
+
     def create_podcast_episode(
         self,
         topic: str,
         output_dir: str = "output",
         custom_image_prompt: Optional[str] = None,
     ) -> dict:
-        """Create a complete podcast episode with image, script, and video.
+        """Create a complete podcast episode with image, script, and 3 combined videos.
 
         Args:
             topic: The topic for the podcast episode.
@@ -244,31 +368,60 @@ class PodcastAgent:
 
         try:
             # Step 1: Generate podcast image
-            logger.info("Step 1/3: Generating podcast image...")
+            logger.info("Step 1/5: Generating podcast image...")
             image = self.generate_podcast_image(custom_image_prompt)
             image_path = output_path / "podcast_image.png"
             image.save(image_path)
 
-            # Step 2: Generate podcast script
-            logger.info("Step 2/3: Generating podcast script...")
-            script = self.generate_podcast_script(topic)
+            # Step 2: Generate podcast script (3 parts)
+            logger.info("Step 2/5: Generating 3-part podcast script...")
+            script_parts = self.generate_podcast_script(topic)
+
+            # Save individual script parts
+            script_paths = []
+            for i, script_part in enumerate(script_parts, 1):
+                script_part_path = output_path / f"podcast_script_part_{i}.txt"
+                with open(script_part_path, "w", encoding="utf-8") as f:
+                    f.write(script_part)
+                script_paths.append(str(script_part_path))
+
+            # Save combined script
+            combined_script = "\n\n---PART---\n\n".join(script_parts)
             script_path = output_path / "podcast_script.txt"
             with open(script_path, "w", encoding="utf-8") as f:
-                f.write(script)
+                f.write(combined_script)
 
-            # Step 3: Generate podcast video
-            logger.info("Step 3/3: Generating podcast video...")
-            video_filename = output_path / "podcast_video.mp4"
-            video_path = self.generate_podcast_video(
-                script=script, image=image, output_filename=str(video_filename)
+            # Step 3: Generate 3 individual videos
+            logger.info("Step 3/5: Generating 3 individual podcast videos...")
+            video_paths = self.generate_multiple_podcast_videos(
+                script_parts=script_parts, image=image, output_dir=str(output_path)
             )
+
+            # Step 4: Combine videos into one final video
+            logger.info("Step 4/5: Combining videos into final 24-second video...")
+            final_video_path = output_path / "podcast_video.mp4"
+            combined_video_path = self.combine_videos(
+                video_paths=video_paths, output_filename=str(final_video_path)
+            )
+
+            # Step 5: Clean up individual video parts (optional)
+            logger.info("Step 5/5: Cleaning up individual video parts...")
+            for video_path in video_paths:
+                try:
+                    os.remove(video_path)
+                    logger.info(f"Cleaned up: {video_path}")
+                except Exception as e:
+                    logger.warning(f"Could not clean up {video_path}: {e}")
 
             result = {
                 "topic": topic,
                 "image_path": str(image_path),
                 "script_path": str(script_path),
-                "video_path": video_path,
-                "script_content": script,
+                "script_parts": script_parts,
+                "script_part_paths": script_paths,
+                "video_path": combined_video_path,
+                "individual_video_paths": video_paths,
+                "script_content": combined_script,
             }
 
             logger.success(
@@ -309,7 +462,9 @@ def main():
         print(f"Image: {result['image_path']}")
         print(f"Script: {result['script_path']}")
         print(f"Video: {result['video_path']}")
-        print(f"\nGenerated Script:\n{result['script_content']}")
+        print(f"\nGenerated Script (3 parts, 24 seconds total):")
+        for i, part in enumerate(result["script_parts"], 1):
+            print(f"\nPart {i} (8 seconds):\n{part}")
 
     except Exception as e:
         logger.error(f"Failed to create podcast episode: {e}")

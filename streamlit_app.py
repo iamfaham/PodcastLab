@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from main import PodcastAgent
 from dotenv import load_dotenv
@@ -66,6 +66,80 @@ st.markdown(
 )
 
 
+def cleanup_old_files(output_dir: str = "output", max_age_hours: int = 24) -> dict:
+    """
+    Clean up files older than specified hours in the output directory.
+
+    Args:
+        output_dir: Directory to clean up
+        max_age_hours: Maximum age in hours before files are deleted
+
+    Returns:
+        Dictionary with cleanup statistics
+    """
+    output_path = Path(output_dir)
+    if not output_path.exists():
+        return {"deleted_files": 0, "deleted_dirs": 0, "freed_space": 0}
+
+    cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+    deleted_files = 0
+    deleted_dirs = 0
+    freed_space = 0
+
+    try:
+        # Get all subdirectories in output folder
+        for item in output_path.iterdir():
+            if item.is_dir():
+                # Check if directory is older than cutoff time
+                dir_creation_time = datetime.fromtimestamp(item.stat().st_ctime)
+
+                if dir_creation_time < cutoff_time:
+                    # Calculate space before deletion
+                    dir_size = sum(
+                        f.stat().st_size for f in item.rglob("*") if f.is_file()
+                    )
+                    freed_space += dir_size
+
+                    # Delete the entire directory and its contents
+                    import shutil
+
+                    shutil.rmtree(item)
+                    deleted_dirs += 1
+
+                    # Count files in the deleted directory
+                    deleted_files += sum(1 for f in item.rglob("*") if f.is_file())
+
+        return {
+            "deleted_files": deleted_files,
+            "deleted_dirs": deleted_dirs,
+            "freed_space": freed_space,
+            "cutoff_time": cutoff_time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+    except Exception as e:
+        st.error(f"Error during cleanup: {e}")
+        return {
+            "deleted_files": 0,
+            "deleted_dirs": 0,
+            "freed_space": 0,
+            "error": str(e),
+        }
+
+
+def format_file_size(size_bytes: int) -> str:
+    """Convert bytes to human readable format."""
+    if size_bytes == 0:
+        return "0 B"
+
+    size_names = ["B", "KB", "MB", "GB"]
+    i = 0
+    while size_bytes >= 1024 and i < len(size_names) - 1:
+        size_bytes /= 1024.0
+        i += 1
+
+    return f"{size_bytes:.1f} {size_names[i]}"
+
+
 def main():
     # Header
     st.markdown(
@@ -77,6 +151,17 @@ def main():
     """,
         unsafe_allow_html=True,
     )
+
+    # Auto-cleanup on app start (only run once per session)
+    if "cleanup_done" not in st.session_state:
+        with st.spinner("🧹 Cleaning up old files (24+ hours)..."):
+            cleanup_stats = cleanup_old_files()
+            st.session_state.cleanup_done = True
+
+            if cleanup_stats["deleted_files"] > 0:
+                st.success(
+                    f"✅ Cleanup completed! Deleted {cleanup_stats['deleted_files']} files from {cleanup_stats['deleted_dirs']} directories, freed {format_file_size(cleanup_stats['freed_space'])}"
+                )
 
     # Sidebar for configuration
     with st.sidebar:
@@ -151,24 +236,10 @@ def main():
 
                 # Step 1: Generate image
                 with status_container:
-                    status_text.text("🖼️ Step 1/3: Generating podcast image...")
-                    progress_bar.progress(20)
+                    status_text.text("🖼️ Step 1/5: Generating podcast image...")
+                    progress_bar.progress(10)
 
                 try:
-                    image = agent.generate_podcast_image()
-                    progress_bar.progress(40)
-
-                    # Step 2: Generate script
-                    status_text.text("📝 Step 2/3: Generating podcast script...")
-                    progress_bar.progress(60)
-
-                    script = agent.generate_podcast_script(topic)
-                    progress_bar.progress(80)
-
-                    # Step 3: Generate video
-                    status_text.text("🎬 Step 3/3: Generating podcast video...")
-                    progress_bar.progress(90)
-
                     # Create timestamped subfolder with unique ID
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     unique_id = str(uuid.uuid4())[:8]  # First 8 characters of UUID
@@ -177,20 +248,71 @@ def main():
                     output_dir = Path("output") / subfolder_name
                     output_dir.mkdir(parents=True, exist_ok=True)
 
+                    image = agent.generate_podcast_image()
+                    progress_bar.progress(20)
+
+                    # Step 2: Generate script (3 parts)
+                    status_text.text("📝 Step 2/5: Generating 3-part podcast script...")
+                    progress_bar.progress(30)
+
+                    script_parts = agent.generate_podcast_script(topic)
+                    progress_bar.progress(40)
+
+                    # Step 3: Generate 3 individual videos
+                    status_text.text("🎬 Step 3/5: Generating 3 individual videos...")
+                    progress_bar.progress(50)
+
+                    video_paths = agent.generate_multiple_podcast_videos(
+                        script_parts=script_parts,
+                        image=image,
+                        output_dir=str(output_dir),
+                    )
+                    progress_bar.progress(70)
+
+                    # Step 4: Combine videos
+                    status_text.text(
+                        "🔗 Step 4/5: Combining videos into final 24-second video..."
+                    )
+                    progress_bar.progress(80)
+
+                    final_video_path = output_dir / "podcast_video.mp4"
+                    combined_video_path = agent.combine_videos(
+                        video_paths=video_paths, output_filename=str(final_video_path)
+                    )
+                    progress_bar.progress(90)
+
+                    # Step 5: Clean up
+                    status_text.text(
+                        "🧹 Step 5/5: Cleaning up individual video parts..."
+                    )
+                    progress_bar.progress(95)
+
                     # Save image
                     image_path = output_dir / "podcast_image.png"
                     image.save(image_path)
 
-                    # Save script
+                    # Save individual script parts
+                    script_part_paths = []
+                    for i, script_part in enumerate(script_parts, 1):
+                        script_part_path = output_dir / f"podcast_script_part_{i}.txt"
+                        with open(script_part_path, "w", encoding="utf-8") as f:
+                            f.write(script_part)
+                        script_part_paths.append(str(script_part_path))
+
+                    # Save combined script
+                    combined_script = "\n\n---PART---\n\n".join(script_parts)
                     script_path = output_dir / "podcast_script.txt"
                     with open(script_path, "w", encoding="utf-8") as f:
-                        f.write(script)
+                        f.write(combined_script)
 
-                    # Generate video
-                    video_filename = output_dir / "podcast_video.mp4"
-                    video_path = agent.generate_podcast_video(
-                        script=script, image=image, output_filename=str(video_filename)
-                    )
+                    # Clean up individual video parts
+                    for video_path in video_paths:
+                        try:
+                            os.remove(video_path)
+                        except Exception as e:
+                            st.warning(f"Could not clean up {video_path}: {e}")
+
+                    video_path = combined_video_path
 
                     # Complete
                     progress_bar.progress(100)
@@ -219,10 +341,51 @@ def main():
                             use_container_width=True,
                         )
 
-                        # Display script
-                        st.markdown("#### 📝 Generated Script")
+                        # Display script parts
+                        st.markdown(
+                            "#### 📝 Generated Script (3 parts, 24 seconds total)"
+                        )
+
+                        # Create tabs for each script part
+                        tab1, tab2, tab3 = st.tabs(
+                            ["Part 1 (8s)", "Part 2 (8s)", "Part 3 (8s)"]
+                        )
+
+                        with tab1:
+                            st.text_area(
+                                "Script Part 1:",
+                                value=script_parts[0],
+                                height=100,
+                                disabled=True,
+                                key="script_part_1",
+                            )
+
+                        with tab2:
+                            st.text_area(
+                                "Script Part 2:",
+                                value=script_parts[1],
+                                height=100,
+                                disabled=True,
+                                key="script_part_2",
+                            )
+
+                        with tab3:
+                            st.text_area(
+                                "Script Part 3:",
+                                value=script_parts[2],
+                                height=100,
+                                disabled=True,
+                                key="script_part_3",
+                            )
+
+                        # Show combined script
+                        st.markdown("#### 📄 Combined Script")
                         st.text_area(
-                            "Podcast Script:", value=script, height=150, disabled=True
+                            "Full Script:",
+                            value=combined_script,
+                            height=150,
+                            disabled=True,
+                            key="combined_script",
                         )
 
                         # Display video
@@ -298,7 +461,10 @@ def main():
         ### ⏱️ Expected Timeline
         - **Image Generation**: ~10-30 seconds
         - **Script Generation**: ~5-15 seconds  
-        - **Video Generation**: ~11 seconds to 6 minutes
+        - **Video Generation**: ~33 seconds to 18 minutes
+          - 3 individual videos (8s each)
+          - Video combining: ~5-10 seconds
+        - **Total Duration**: 24 seconds (3 × 8s videos)
         """
         )
 

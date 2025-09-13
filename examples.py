@@ -23,7 +23,9 @@ def example_basic_usage():
     print(f"🖼️ Image: {result['image_path']}")
     print(f"📝 Script: {result['script_path']}")
     print(f"🎬 Video: {result['video_path']}")
-    print(f"\n📋 Generated Script Preview:\n{result['script_content'][:200]}...")
+    print(f"\n📋 Generated Script (3 parts, 24 seconds total):")
+    for i, part in enumerate(result["script_parts"], 1):
+        print(f"\nPart {i} (8 seconds):\n{part[:100]}...")
     print("\n")
 
 
@@ -48,6 +50,7 @@ def example_custom_image_prompt():
     print(f"✅ Created space-themed podcast about: {topic}")
     print(f"📁 Files saved in: output/space_themed/")
     print(f"🖼️ Custom image generated with space theme")
+    print(f"🎬 24-second video created from 3 parts")
     print("\n")
 
 
@@ -64,19 +67,23 @@ def example_individual_components():
     image.save("output/standalone_image.png")
     print("✅ Image saved to: output/standalone_image.png")
 
-    # Generate just a script
-    print("📝 Generating podcast script...")
+    # Generate just a script (3 parts)
+    print("📝 Generating 3-part podcast script...")
     topic = "Digital Privacy in 2024"
-    script = agent.generate_podcast_script(topic)
-    with open("output/standalone_script.txt", "w", encoding="utf-8") as f:
-        f.write(script)
-    print("✅ Script saved to: output/standalone_script.txt")
-    print(f"📋 Script preview: {script[:150]}...")
+    script_parts = agent.generate_podcast_script(topic)
+    for i, script_part in enumerate(script_parts, 1):
+        with open(f"output/standalone_script_part_{i}.txt", "w", encoding="utf-8") as f:
+            f.write(script_part)
+    print("✅ Script parts saved to: output/standalone_script_part_*.txt")
+    for i, part in enumerate(script_parts, 1):
+        print(f"📋 Script part {i} preview: {part[:100]}...")
 
-    # Generate just a video (using the image and script)
-    print("🎬 Generating podcast video...")
+    # Generate just a video (using the image and first script part)
+    print("🎬 Generating single video segment...")
     video_path = agent.generate_podcast_video(
-        script=script, image=image, output_filename="output/standalone_video.mp4"
+        script=script_parts[0],
+        image=image,
+        output_filename="output/standalone_video.mp4",
     )
     print(f"✅ Video saved to: {video_path}")
     print("\n")
@@ -122,7 +129,9 @@ def main():
         print("🚀 Podcast Creator Agent Examples")
         print("=" * 60)
         print("This will demonstrate various ways to use the PodcastAgent.")
-        print("Note: Video generation can take several minutes per episode.\n")
+        print(
+            "Note: Video generation can take several minutes per episode (3 videos per episode).\n"
+        )
 
         # Create output directory
         os.makedirs("output", exist_ok=True)

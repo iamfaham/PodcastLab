@@ -36,9 +36,15 @@ pip install -r requirements.txt
 ```bash
 # Option 1: Environment variable
 export GOOGLE_AI_API_KEY="your_api_key_here"
+export GEMINI_MODEL="gemini_model_name"
+export IMAGEN_MODEL="imagen_model_name"
+export VEO_MODEL="veo_model_name"
 
 # Option 2: Create a .env file
 echo "GOOGLE_AI_API_KEY=your_api_key_here" > .env
+echo "GEMINI_MODEL=gemini_model_name" > .env
+echo "IMAGEN_MODEL=imagen_model_name" > .env
+echo "VEO_MODEL=veo_model_name" > .env
 ```
 
 ### Basic Usage
@@ -180,13 +186,16 @@ print(f"Video saved to: {video_path}")
 ### Environment Variables
 
 - `GOOGLE_AI_API_KEY`: Your Google AI API key (required)
+- `GEMINI_MODEL`: Gemini model name (required)
+- `IMAGEN_MODEL`: Imagen model name (required)
+- `VEO_MODEL`: Veo model name (required)
 
 ### Model Configuration
 
-The agent uses the following Google AI models:
+I suggest tu use the following Google AI models:
 
 - **Imagen**: `imagen-3.0-generate-002` for image generation
-- **Gemini**: `gemini-2.0-flash-exp` for script generation
+- **Gemini**: `gemini-2.5-flash-exp` for script generation
 - **Veo**: `veo-3.0-generate-preview` for video generation
 
 ## 📁 Output Structure
