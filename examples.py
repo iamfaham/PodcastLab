@@ -38,9 +38,9 @@ def example_custom_image_prompt():
 
     topic = "Space Exploration"
     custom_prompt = (
-        "Two astronauts in a futuristic space station podcast studio, "
+        "Two astronauts in a futuristic space station podcast studio: Alex (male, 30s) and Sarah (female, 30s), "
         "with Earth visible through a large window, professional lighting, "
-        "space-themed microphones and equipment"
+        "space-themed microphones and equipment, both hosts looking engaged"
     )
 
     result = agent.create_podcast_episode(

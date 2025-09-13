@@ -53,9 +53,10 @@ class PodcastAgent:
             PIL Image object of the generated podcast photo.
         """
         prompt = custom_prompt or (
-            "Two professional podcast hosts sitting across from each other in a modern podcast studio, "
-            "with microphones, headphones, and recording equipment. Professional lighting, "
-            "warm and inviting atmosphere, high quality photography style."
+            "Two professional podcast hosts: Alex (male, 30s, friendly smile) and Sarah (female, 30s, warm expression) "
+            "sitting across from each other in a modern podcast studio, with microphones, headphones, and recording equipment. "
+            "Professional lighting, warm and inviting atmosphere, high quality photography style. "
+            "Both hosts look engaged and ready to discuss topics."
         )
 
         logger.info(f"Generating podcast image with prompt: {prompt}")
@@ -90,12 +91,19 @@ class PodcastAgent:
             List of 3 script parts, each optimized for 8-second video segments.
         """
         prompt = (
-            f"Write an engaging podcast script about '{topic}' that is divided into exactly 3 parts, "
-            f"each suitable for an 8-second video segment (24 seconds total). "
-            f"The script should be conversational, mention the topic clearly, and sound natural when spoken. "
-            f"Include dialogue for two podcast hosts. Each part should flow naturally into the next. "
-            f"Format the response as exactly 3 parts separated by '---PART---' markers. "
-            f"Each part should be compelling and work well with video narration."
+            f"Write a VERY SHORT podcast script about '{topic}' with exactly 3 parts, each for 8-second video segments. "
+            f"Hosts are Alex (male) and Sarah (female). Each part should be 1-2 short sentences maximum. "
+            f"Format: 'Alex: [short line] Sarah: [short response]' for each part. "
+            f"Separate parts with '---PART---'. Keep it conversational but VERY brief - each part should be 15-20 words max. "
+            f"Example format:\n"
+            f"Alex: Welcome to TechTalk! Today we're discussing {topic}.\n"
+            f"Sarah: It's fascinating how this impacts our daily lives.\n"
+            f"---PART---\n"
+            f"Alex: The key benefits are really impressive.\n"
+            f"Sarah: Absolutely, and the future looks even brighter.\n"
+            f"---PART---\n"
+            f"Alex: Thanks for joining us on this topic!\n"
+            f"Sarah: Stay tuned for more insights next time."
         )
 
         logger.info(f"Generating 3-part podcast script for topic: {topic}")
@@ -139,6 +147,17 @@ class PodcastAgent:
             parts = parts[:3]  # Take only first 3 parts
             parts = [part.strip() for part in parts]
 
+            # Clean up each part - remove any markdown formatting and extra whitespace
+            cleaned_parts = []
+            for part in parts:
+                # Remove markdown formatting like **text** and *text*
+                cleaned_part = part.replace("**", "").replace("*", "")
+                # Remove extra whitespace and newlines
+                cleaned_part = " ".join(cleaned_part.split())
+                cleaned_parts.append(cleaned_part)
+
+            parts = cleaned_parts
+
             logger.success(
                 f"Podcast script generated successfully: 3 parts, {sum(len(part) for part in parts)} total characters"
             )
@@ -166,10 +185,11 @@ class PodcastAgent:
         """
         # Create a detailed prompt that incorporates the script
         prompt = (
-            f"A professional podcast recording session with two hosts in a modern studio setting. "
-            f"The hosts are engaged in conversation about the following content: {script}. "
+            f"A professional podcast recording session with Alex (male host, 30s) and Sarah (female host, 30s) "
+            f"in a modern studio setting. The hosts are engaged in conversation about the following content: {script}. "
             f"Show natural gestures, professional lighting, microphones, and recording equipment. "
-            f"Cinematic quality, smooth camera movement, realistic expressions and movements."
+            f"Cinematic quality, smooth camera movement, realistic expressions and movements. "
+            f"Both hosts should look engaged and natural while speaking their lines."
         )
 
         logger.info(
