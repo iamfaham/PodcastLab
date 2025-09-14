@@ -7,6 +7,7 @@ sdk: docker
 pinned: false
 license: mit
 app_port: 7860
+short_description: AI-powered podcast creator using Google's Imagen, Gemini, and Veo models.
 ---
 
 # PodcastLab - AI-Powered Podcast Creator
