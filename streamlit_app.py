@@ -273,23 +273,9 @@ def main():
                     # Refresh client connection before script generation (Streamlit fix)
                     agent.refresh_client()
 
-                    # Add debug information for Streamlit
-                    st.write(f"🔍 Debug: Generating script for topic: '{topic}'")
-                    st.write(f"🔍 Debug: Using search: {use_search}")
-
                     script_parts, grounding_metadata = agent.generate_podcast_script(
                         topic, use_search
                     )
-
-                    # Debug: Check script parts
-                    st.write(f"🔍 Debug: Generated {len(script_parts)} script parts")
-                    for i, part in enumerate(script_parts, 1):
-                        st.write(f"🔍 Debug: Part {i} length: {len(part)} characters")
-                        if len(part) == 0:
-                            st.error(f"❌ ERROR: Part {i} is empty!")
-                        else:
-                            st.write(f"🔍 Debug: Part {i} preview: {part[:100]}...")
-
                     progress_bar.progress(40)
 
                     # Step 3: Generate 3 individual videos
