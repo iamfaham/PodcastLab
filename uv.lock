@@ -646,6 +646,7 @@ dependencies = [
     { name = "moviepy" },
     { name = "pillow" },
     { name = "python-dotenv" },
+    { name = "requests" },
     { name = "streamlit" },
 ]
 
@@ -656,6 +657,7 @@ requires-dist = [
     { name = "moviepy", specifier = ">=2.2.1" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "requests", specifier = ">=2.32.5" },
     { name = "streamlit", specifier = ">=1.49.1" },
 ]
 

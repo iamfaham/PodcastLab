@@ -2,6 +2,8 @@ import streamlit as st
 import os
 import time
 import uuid
+import base64
+import io
 from datetime import datetime, timedelta
 from pathlib import Path
 from main import PodcastAgent
@@ -66,78 +68,11 @@ st.markdown(
 )
 
 
-def cleanup_old_files(output_dir: str = "output", max_age_hours: int = 24) -> dict:
-    """
-    Clean up files older than specified hours in the output directory.
-
-    Args:
-        output_dir: Directory to clean up
-        max_age_hours: Maximum age in hours before files are deleted
-
-    Returns:
-        Dictionary with cleanup statistics
-    """
-    output_path = Path(output_dir)
-    if not output_path.exists():
-        return {"deleted_files": 0, "deleted_dirs": 0, "freed_space": 0}
-
-    cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
-    deleted_files = 0
-    deleted_dirs = 0
-    freed_space = 0
-
-    try:
-        # Get all subdirectories in output folder
-        for item in output_path.iterdir():
-            if item.is_dir():
-                # Check if directory is older than cutoff time
-                dir_creation_time = datetime.fromtimestamp(item.stat().st_ctime)
-
-                if dir_creation_time < cutoff_time:
-                    # Calculate space before deletion
-                    dir_size = sum(
-                        f.stat().st_size for f in item.rglob("*") if f.is_file()
-                    )
-                    freed_space += dir_size
-
-                    # Delete the entire directory and its contents
-                    import shutil
-
-                    shutil.rmtree(item)
-                    deleted_dirs += 1
-
-                    # Count files in the deleted directory
-                    deleted_files += sum(1 for f in item.rglob("*") if f.is_file())
-
-        return {
-            "deleted_files": deleted_files,
-            "deleted_dirs": deleted_dirs,
-            "freed_space": freed_space,
-            "cutoff_time": cutoff_time.strftime("%Y-%m-%d %H:%M:%S"),
-        }
-
-    except Exception as e:
-        st.error(f"Error during cleanup: {e}")
-        return {
-            "deleted_files": 0,
-            "deleted_dirs": 0,
-            "freed_space": 0,
-            "error": str(e),
-        }
-
-
-def format_file_size(size_bytes: int) -> str:
-    """Convert bytes to human readable format."""
-    if size_bytes == 0:
-        return "0 B"
-
-    size_names = ["B", "KB", "MB", "GB"]
-    i = 0
-    while size_bytes >= 1024 and i < len(size_names) - 1:
-        size_bytes /= 1024.0
-        i += 1
-
-    return f"{size_bytes:.1f} {size_names[i]}"
+def create_download_link(file_data, filename, mime_type):
+    """Create a download link for file data."""
+    b64 = base64.b64encode(file_data).decode()
+    href = f'<a href="data:{mime_type};base64,{b64}" download="{filename}">Download {filename}</a>'
+    return href
 
 
 def main():
@@ -152,16 +87,9 @@ def main():
         unsafe_allow_html=True,
     )
 
-    # Auto-cleanup on app start (only run once per session)
-    if "cleanup_done" not in st.session_state:
-        with st.spinner("🧹 Cleaning up old files (24+ hours)..."):
-            cleanup_stats = cleanup_old_files()
-            st.session_state.cleanup_done = True
-
-            if cleanup_stats["deleted_files"] > 0:
-                st.success(
-                    f"✅ Cleanup completed! Deleted {cleanup_stats['deleted_files']} files from {cleanup_stats['deleted_dirs']} directories, freed {format_file_size(cleanup_stats['freed_space'])}"
-                )
+    # Initialize session state for file storage
+    if "generated_files" not in st.session_state:
+        st.session_state.generated_files = {}
 
     # Sidebar for configuration
     with st.sidebar:
@@ -247,13 +175,10 @@ def main():
                     progress_bar.progress(10)
 
                 try:
-                    # Create timestamped subfolder with unique ID
+                    # Generate unique ID for this session
+                    unique_id = str(uuid.uuid4())[:8]
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    unique_id = str(uuid.uuid4())[:8]  # First 8 characters of UUID
-                    subfolder_name = f"{timestamp}_{unique_id}"
-
-                    output_dir = Path("output") / subfolder_name
-                    output_dir.mkdir(parents=True, exist_ok=True)
+                    session_key = f"{timestamp}_{unique_id}"
 
                     image = agent.generate_podcast_image()
                     progress_bar.progress(20)
@@ -271,11 +196,31 @@ def main():
                     status_text.text("🎬 Step 3/5: Generating 3 individual videos...")
                     progress_bar.progress(50)
 
-                    video_paths = agent.generate_multiple_podcast_videos(
-                        script_parts=script_parts,
-                        image=image,
-                        output_dir=str(output_dir),
-                    )
+                    # For HF Spaces, we'll generate videos in memory
+                    video_data_list = []
+                    for i, script_part in enumerate(script_parts, 1):
+                        status_text.text(f"🎬 Generating video part {i}/3...")
+                        try:
+                            # Generate video to temporary location
+                            temp_video_path = f"/tmp/temp_video_{i}.mp4"
+                            video_path = agent.generate_podcast_video(
+                                script=script_part,
+                                image=image,
+                                output_filename=temp_video_path,
+                            )
+
+                            # Read video data into memory
+                            with open(video_path, "rb") as f:
+                                video_data = f.read()
+                            video_data_list.append(video_data)
+
+                            # Clean up temp file
+                            os.remove(video_path)
+
+                        except Exception as e:
+                            st.error(f"Failed to generate video part {i}: {e}")
+                            raise
+
                     progress_bar.progress(70)
 
                     # Step 4: Combine videos
@@ -284,44 +229,85 @@ def main():
                     )
                     progress_bar.progress(80)
 
-                    final_video_path = output_dir / "podcast_video.mp4"
-                    combined_video_path = agent.combine_videos(
-                        video_paths=video_paths, output_filename=str(final_video_path)
-                    )
+                    # For HF Spaces, we'll combine videos in memory
+                    try:
+                        from moviepy import VideoFileClip, concatenate_videoclips
+                        import tempfile
+
+                        # Create temporary files for combining
+                        temp_files = []
+                        clips = []
+
+                        for i, video_data in enumerate(video_data_list):
+                            # Create temporary file
+                            temp_file = tempfile.NamedTemporaryFile(
+                                suffix=f"_part_{i}.mp4", delete=False
+                            )
+                            temp_file.write(video_data)
+                            temp_file.close()
+                            temp_files.append(temp_file.name)
+
+                            # Load as video clip
+                            clip = VideoFileClip(temp_file.name)
+                            clips.append(clip)
+
+                        # Combine videos
+                        final_clip = concatenate_videoclips(clips)
+
+                        # Write to bytes
+                        final_video_buffer = io.BytesIO()
+                        final_clip.write_videofile(
+                            final_video_buffer,
+                            codec="libx264",
+                            audio_codec="aac",
+                            temp_audiofile="temp-audio.m4a",
+                            remove_temp=True,
+                            verbose=False,
+                            logger=None,
+                        )
+
+                        final_video_data = final_video_buffer.getvalue()
+
+                        # Clean up
+                        for clip in clips:
+                            clip.close()
+                        final_clip.close()
+
+                        for temp_file in temp_files:
+                            os.unlink(temp_file)
+
+                    except Exception as e:
+                        st.error(f"Failed to combine videos: {e}")
+                        # Fallback: use first video
+                        final_video_data = (
+                            video_data_list[0] if video_data_list else b""
+                        )
+
                     progress_bar.progress(90)
 
-                    # Step 5: Clean up
-                    status_text.text(
-                        "🧹 Step 5/5: Cleaning up individual video parts..."
-                    )
+                    # Step 5: Save image to memory
+                    status_text.text("💾 Step 5/5: Preparing files for download...")
                     progress_bar.progress(95)
 
-                    # Save image
-                    image_path = output_dir / "podcast_image.png"
-                    image.save(image_path)
-
-                    # Save individual script parts
-                    script_part_paths = []
-                    for i, script_part in enumerate(script_parts, 1):
-                        script_part_path = output_dir / f"podcast_script_part_{i}.txt"
-                        with open(script_part_path, "w", encoding="utf-8") as f:
-                            f.write(script_part)
-                        script_part_paths.append(str(script_part_path))
+                    # Convert image to bytes
+                    img_buffer = io.BytesIO()
+                    image.save(img_buffer, format="PNG")
+                    image_data = img_buffer.getvalue()
 
                     # Save combined script
                     combined_script = "\n\n---PART---\n\n".join(script_parts)
-                    script_path = output_dir / "podcast_script.txt"
-                    with open(script_path, "w", encoding="utf-8") as f:
-                        f.write(combined_script)
+                    script_data = combined_script.encode("utf-8")
 
-                    # Clean up individual video parts
-                    for video_path in video_paths:
-                        try:
-                            os.remove(video_path)
-                        except Exception as e:
-                            st.warning(f"Could not clean up {video_path}: {e}")
-
-                    video_path = combined_video_path
+                    # Store in session state
+                    st.session_state.generated_files[session_key] = {
+                        "topic": topic,
+                        "image_data": image_data,
+                        "script_data": script_data,
+                        "video_data": final_video_data,
+                        "script_parts": script_parts,
+                        "grounding_metadata": grounding_metadata,
+                        "timestamp": timestamp,
+                    }
 
                     # Complete
                     progress_bar.progress(100)
@@ -336,7 +322,7 @@ def main():
                             f"""
                         <div class="success-box">
                             <h4>✅ Successfully generated podcast episode about: <strong>{topic}</strong></h4>
-                            <p>📁 Files saved in: <code>output/{subfolder_name}/</code></p>
+                            <p>📁 Session ID: <code>{session_key}</code></p>
                         </div>
                         """,
                             unsafe_allow_html=True,
@@ -439,8 +425,8 @@ def main():
 
                         # Display video
                         st.markdown("#### 🎬 Generated Video")
-                        if os.path.exists(video_path):
-                            st.video(video_path)
+                        if final_video_data:
+                            st.video(final_video_data)
 
                             # Download buttons
                             st.markdown("#### 📥 Download Files")
@@ -448,35 +434,36 @@ def main():
                             col_download1, col_download2, col_download3 = st.columns(3)
 
                             with col_download1:
-                                with open(image_path, "rb") as img_file:
-                                    st.download_button(
-                                        label="📷 Download Image",
-                                        data=img_file.read(),
-                                        file_name=image_path.name,
-                                        mime="image/png",
-                                    )
+                                st.markdown(
+                                    create_download_link(
+                                        image_data,
+                                        f"podcast_image_{session_key}.png",
+                                        "image/png",
+                                    ),
+                                    unsafe_allow_html=True,
+                                )
 
                             with col_download2:
-                                with open(script_path, "rb") as script_file:
-                                    st.download_button(
-                                        label="📄 Download Script",
-                                        data=script_file.read(),
-                                        file_name=script_path.name,
-                                        mime="text/plain",
-                                    )
+                                st.markdown(
+                                    create_download_link(
+                                        script_data,
+                                        f"podcast_script_{session_key}.txt",
+                                        "text/plain",
+                                    ),
+                                    unsafe_allow_html=True,
+                                )
 
                             with col_download3:
-                                with open(video_path, "rb") as video_file:
-                                    st.download_button(
-                                        label="🎬 Download Video",
-                                        data=video_file.read(),
-                                        file_name=Path(video_path).name,
-                                        mime="video/mp4",
-                                    )
+                                st.markdown(
+                                    create_download_link(
+                                        final_video_data,
+                                        f"podcast_video_{session_key}.mp4",
+                                        "video/mp4",
+                                    ),
+                                    unsafe_allow_html=True,
+                                )
                         else:
-                            st.error(
-                                "Video file not found. Please check the generation process."
-                            )
+                            st.error("Video generation failed. Please try again.")
 
                 except Exception as e:
                     st.markdown(
@@ -516,6 +503,45 @@ def main():
         - **Total Duration**: 24 seconds (3 × 8s videos)
         """
         )
+
+        # Show recent generations
+        if st.session_state.generated_files:
+            st.markdown("### 📁 Recent Generations")
+            for session_key, files in list(st.session_state.generated_files.items())[
+                -3:
+            ]:
+                with st.expander(f"Session {session_key[:8]} - {files['topic']}"):
+                    st.write(f"**Topic:** {files['topic']}")
+                    st.write(f"**Generated:** {files['timestamp']}")
+
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.markdown(
+                            create_download_link(
+                                files["image_data"],
+                                f"image_{session_key[:8]}.png",
+                                "image/png",
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    with col2:
+                        st.markdown(
+                            create_download_link(
+                                files["script_data"],
+                                f"script_{session_key[:8]}.txt",
+                                "text/plain",
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    with col3:
+                        st.markdown(
+                            create_download_link(
+                                files["video_data"],
+                                f"video_{session_key[:8]}.mp4",
+                                "video/mp4",
+                            ),
+                            unsafe_allow_html=True,
+                        )
 
 
 if __name__ == "__main__":

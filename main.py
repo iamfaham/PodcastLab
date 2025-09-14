@@ -464,7 +464,7 @@ class PodcastAgent:
     def create_podcast_episode(
         self,
         topic: str,
-        output_dir: str = "output",
+        output_dir: str = "/tmp/podcast_output",
         custom_image_prompt: Optional[str] = None,
         use_search: bool = False,
     ) -> dict:
