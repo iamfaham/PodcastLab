@@ -13,6 +13,10 @@ short_description: AI podcast creator using Google's Imagen, Gemini, and Veo.
 
 🎙️ **Create professional podcasts with AI using Google's Imagen, Gemini, and Veo models**
 
+## Demo
+
+https://github.com/user-attachments/assets/30e09cfd-ade6-4911-9ae2-9f8c5c2ead6b
+
 ## Features
 
 - **AI-Generated Content**: Create complete, end-to-end podcast scripts using Google's Gemini AI
