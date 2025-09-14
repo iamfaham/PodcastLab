@@ -32,9 +32,9 @@ class PodcastAgent:
             )
 
         # Load model names from environment variables with defaults
-        self.imagen_model = os.getenv("IMAGEN_MODEL", "imagen-3.0-generate-002")
-        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-205-flash-exp")
-        self.veo_model = os.getenv("VEO_MODEL", "veo-3")
+        self.imagen_model = os.getenv("IMAGEN_MODEL", "imagen-4.0-generate-001")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        self.veo_model = os.getenv("VEO_MODEL", "veo-3.0-generate-001")
 
         self.client = genai.Client(api_key=self.api_key)
         logger.info(
