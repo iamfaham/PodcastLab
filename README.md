@@ -3,10 +3,9 @@ title: PodcastLab
 emoji: 🎙️
 colorFrom: blue
 colorTo: purple
-sdk: docker
+sdk: streamlit
 pinned: false
 license: mit
-app_port: 7860
 short_description: AI podcast creator using Google's Imagen, Gemini, and Veo.
 ---
 
@@ -60,14 +59,36 @@ Each part is designed to feel like a complete segment of a real podcast episode 
 
 ## Requirements
 
-- Google AI API Key (set as `GOOGLE_AI_API_KEY` environment variable)
+- Google AI API Key (set in Streamlit Cloud secrets or as `GOOGLE_AI_API_KEY` environment variable)
 - Internet connection for AI model access
 
-## Environment Variables
+## Deployment on Streamlit Cloud
 
-Make sure to set the following environment variable in your Hugging Face Space:
+### Option 1: Using Streamlit Cloud Secrets (Recommended)
 
-- `GOOGLE_AI_API_KEY`: Your Google AI API key for accessing Gemini, Imagen, and Veo models
+1. **Fork this repository** to your GitHub account
+2. **Go to [Streamlit Cloud](https://share.streamlit.io/)**
+3. **Click "New app"** and connect your GitHub repository
+4. **Set up secrets** in the Streamlit Cloud dashboard:
+   - Go to your app's settings
+   - Navigate to "Secrets" section
+   - Add your Google AI API key:
+     ```toml
+     [secrets]
+     GOOGLE_AI_API_KEY = "your-google-ai-api-key-here"
+     ```
+5. **Deploy** your app
+
+### Option 2: Using Environment Variables
+
+1. **Fork this repository** to your GitHub account
+2. **Go to [Streamlit Cloud](https://share.streamlit.io/)**
+3. **Click "New app"** and connect your GitHub repository
+4. **Set environment variables** in the Streamlit Cloud dashboard:
+   - Go to your app's settings
+   - Navigate to "Environment variables" section
+   - Add: `GOOGLE_AI_API_KEY` = `your-google-ai-api-key-here`
+5. **Deploy** your app
 
 ## Getting Your API Key
 
@@ -75,7 +96,7 @@ Make sure to set the following environment variable in your Hugging Face Space:
 2. Sign in with your Google account
 3. Navigate to the API section
 4. Create a new API key
-5. Copy the key and add it to your Hugging Face Space environment variables
+5. Copy the key and add it to your Streamlit Cloud secrets or environment variables
 
 ## Technical Details
 
@@ -84,7 +105,7 @@ Make sure to set the following environment variable in your Hugging Face Space:
 - **Video Processing**: MoviePy
 - **Image Processing**: Pillow
 - **Aspect Ratio**: Square (1:1) for videos
-- **Deployment**: Docker on Hugging Face Spaces
+- **Deployment**: Streamlit Cloud
 
 ## License
 

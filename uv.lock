@@ -204,7 +204,7 @@ wheels = [
 
 [[package]]
 name = "google-genai"
-version = "1.36.0"
+version = "1.33.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -652,7 +652,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "google-genai", specifier = ">=1.36.0" },
+    { name = "google-genai", specifier = ">=1.33.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "moviepy", specifier = ">=2.2.1" },
     { name = "pillow", specifier = ">=10.0.0" },

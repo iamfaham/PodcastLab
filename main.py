@@ -23,23 +23,65 @@ class PodcastAgent:
         """Initialize the PodcastAgent with Google AI client.
 
         Args:
-            api_key: Google AI API key. If not provided, will use GOOGLE_AI_API_KEY env variable.
+            api_key: Google AI API key. If not provided, will use GOOGLE_AI_API_KEY from secrets or env variable.
         """
-        self.api_key = api_key or os.getenv("GOOGLE_AI_API_KEY")
+        # Try to get API key from Streamlit secrets first, then from environment
+        if not api_key:
+            try:
+                import streamlit as st
+
+                api_key = st.secrets.get(
+                    "GOOGLE_AI_API_KEY", os.getenv("GOOGLE_AI_API_KEY")
+                )
+            except:
+                api_key = os.getenv("GOOGLE_AI_API_KEY")
+
+        self.api_key = api_key
         if not self.api_key:
             raise ValueError(
-                "Google AI API key is required. Set GOOGLE_AI_API_KEY environment variable or pass api_key parameter."
+                "Google AI API key is required. Set GOOGLE_AI_API_KEY in Streamlit secrets, environment variable, or pass api_key parameter."
             )
 
-        # Load model names from environment variables with defaults
-        self.imagen_model = os.getenv("IMAGEN_MODEL", "imagen-4.0-generate-001")
-        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-        self.veo_model = os.getenv("VEO_MODEL", "veo-3.0-generate-001")
+        # Load model names from Streamlit secrets or environment variables with defaults
+        try:
+            import streamlit as st
+
+            self.imagen_model = st.secrets.get(
+                "IMAGEN_MODEL", os.getenv("IMAGEN_MODEL", "imagen-4.0-generate-001")
+            )
+            self.gemini_model = st.secrets.get(
+                "GEMINI_MODEL", os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+            )
+            self.veo_model = st.secrets.get(
+                "VEO_MODEL", os.getenv("VEO_MODEL", "veo-3.0-generate-001")
+            )
+        except:
+            self.imagen_model = os.getenv("IMAGEN_MODEL", "imagen-4.0-generate-001")
+            self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+            self.veo_model = os.getenv("VEO_MODEL", "veo-3.0-generate-001")
 
         self.client = genai.Client(api_key=self.api_key)
         logger.info(
             f"PodcastAgent initialized successfully with models: Imagen={self.imagen_model}, Gemini={self.gemini_model}, Veo={self.veo_model}"
         )
+
+    def _ensure_client_connection(self):
+        """Ensure the client connection is valid, reinitialize if needed."""
+        try:
+            # Try a simple operation to test the connection
+            if hasattr(self.client, "models"):
+                return True
+        except Exception as e:
+            logger.warning(f"Client connection issue detected: {e}")
+            logger.info("Reinitializing Google AI client...")
+            self.client = genai.Client(api_key=self.api_key)
+            return True
+
+    def refresh_client(self):
+        """Refresh the Google AI client connection."""
+        logger.info("Refreshing Google AI client connection...")
+        self.client = genai.Client(api_key=self.api_key)
+        logger.info("Client refreshed successfully")
 
     def generate_podcast_image(
         self, custom_prompt: Optional[str] = None
@@ -131,6 +173,15 @@ class PodcastAgent:
             tools.append(types.Tool(google_search=types.GoogleSearch()))
 
         try:
+            # Ensure client connection is valid
+            self._ensure_client_connection()
+
+            # Add debug logging for Streamlit environment
+            logger.info(
+                f"Making API call to {self.gemini_model} with search: {use_search}"
+            )
+            logger.info(f"Prompt length: {len(prompt)} characters")
+
             response = self.client.models.generate_content(
                 model=self.gemini_model,
                 contents=prompt,
@@ -141,7 +192,93 @@ class PodcastAgent:
                 ),
             )
 
-            full_script = response.text.strip()
+            logger.info(
+                f"API call completed. Response received: {response is not None}"
+            )
+
+            # Initialize full_script variable
+            full_script = None
+
+            # Debug: Check response structure
+            logger.info(f"Response type: {type(response)}")
+            logger.info(f"Response attributes: {dir(response)}")
+
+            # Try multiple ways to extract text from response
+            # Method 1: Check if response has candidates
+            if hasattr(response, "candidates") and response.candidates:
+                logger.info(f"Found {len(response.candidates)} candidates")
+                candidate = response.candidates[0]
+                logger.info(f"Candidate type: {type(candidate)}")
+                logger.info(f"Candidate attributes: {dir(candidate)}")
+
+                if hasattr(candidate, "content") and candidate.content:
+                    logger.info(f"Content type: {type(candidate.content)}")
+                    logger.info(f"Content attributes: {dir(candidate.content)}")
+
+                    if hasattr(candidate.content, "parts") and candidate.content.parts:
+                        logger.info(f"Found {len(candidate.content.parts)} parts")
+                        part = candidate.content.parts[0]
+                        logger.info(f"Part type: {type(part)}")
+                        logger.info(f"Part attributes: {dir(part)}")
+
+                        if hasattr(part, "text"):
+                            full_script = part.text
+                            logger.info(
+                                f"Retrieved text from candidate.content.parts[0].text: {len(full_script) if full_script else 'None'} chars"
+                            )
+
+            # Method 2: Try the direct text attribute as fallback
+            if full_script is None and hasattr(response, "text"):
+                full_script = response.text
+                logger.info(
+                    f"Retrieved text from response.text: {len(full_script) if full_script else 'None'} chars"
+                )
+
+            # Method 3: Try response.parts directly
+            if full_script is None and hasattr(response, "parts") and response.parts:
+                logger.info(f"Found {len(response.parts)} parts in response")
+                part = response.parts[0]
+                logger.info(f"Part type: {type(part)}")
+                logger.info(f"Part attributes: {dir(part)}")
+
+                if hasattr(part, "text"):
+                    full_script = part.text
+                    logger.info(
+                        f"Retrieved text from response.parts[0].text: {len(full_script) if full_script else 'None'} chars"
+                    )
+
+            # Method 4: Try alternative candidate access
+            if (
+                full_script is None
+                and hasattr(response, "candidates")
+                and response.candidates
+            ):
+                candidate = response.candidates[0]
+                if hasattr(candidate, "content") and candidate.content:
+                    if hasattr(candidate.content, "parts") and candidate.content.parts:
+                        full_script = candidate.content.parts[0].text
+                        logger.info(
+                            f"Retrieved text from response.candidates[0].content.parts[0].text: {len(full_script) if full_script else 'None'} chars"
+                        )
+
+            # If still no text found, raise an error
+            if full_script is None:
+                logger.error("Could not extract text from response using any method")
+                logger.error(f"Response structure: {response}")
+                raise Exception(
+                    "Gemini API returned response but could not extract text content using any known method"
+                )
+
+            # Check if the extracted text is empty
+            if not full_script or full_script.strip() == "":
+                logger.error("Extracted text is empty or None")
+                logger.error(f"Full script content: '{full_script}'")
+                raise Exception(
+                    "Gemini API returned empty text content. This might be due to content filtering or API issues."
+                )
+
+            full_script = full_script.strip()
+            logger.info(f"Successfully extracted text: {len(full_script)} characters")
 
             # Split the script into 3 parts
             parts = full_script.split("---PART---")
@@ -209,63 +346,6 @@ class PodcastAgent:
         except Exception as e:
             logger.error(f"Failed to generate podcast script: {e}")
             raise
-
-    def add_citations(self, text: str, grounding_metadata: dict) -> str:
-        """Add inline citations to text based on grounding metadata.
-
-        Args:
-            text: The text to add citations to
-            grounding_metadata: Grounding metadata from Gemini response
-
-        Returns:
-            Text with inline citations added
-        """
-        if not grounding_metadata or not grounding_metadata.get("grounding_supports"):
-            return text
-
-        supports = grounding_metadata["grounding_supports"]
-        chunks = grounding_metadata.get("grounding_chunks", [])
-
-        # Sort supports by end_index in descending order to avoid shifting issues
-        sorted_supports = sorted(
-            supports,
-            key=lambda s: (
-                getattr(s.segment, "end_index", 0) if hasattr(s, "segment") else 0
-            ),
-            reverse=True,
-        )
-
-        for support in sorted_supports:
-            # Handle GroundingSupport object attributes
-            if hasattr(support, "segment") and hasattr(support.segment, "end_index"):
-                end_index = support.segment.end_index
-            else:
-                continue
-
-            if hasattr(support, "grounding_chunk_indices"):
-                chunk_indices = support.grounding_chunk_indices
-            else:
-                continue
-
-            if end_index is None or not chunk_indices:
-                continue
-
-            # Create citation links
-            citation_links = []
-            for i in chunk_indices:
-                if i < len(chunks):
-                    chunk = chunks[i]
-                    # Handle GroundingChunk object attributes
-                    if hasattr(chunk, "web") and hasattr(chunk.web, "uri"):
-                        uri = chunk.web.uri
-                        if uri:
-                            citation_links.append(f"[{i + 1}]({uri})")
-
-            if citation_links:
-                citation_string = ", ".join(citation_links)
-                text = text[:end_index] + citation_string + text[end_index:]
-
-        return text
 
     def generate_podcast_video(
         self,
@@ -464,7 +544,7 @@ class PodcastAgent:
     def create_podcast_episode(
         self,
         topic: str,
-        output_dir: str = "/tmp/podcast_output",
+        output_dir: str = "tmp",
         custom_image_prompt: Optional[str] = None,
         use_search: bool = False,
     ) -> dict:
@@ -581,7 +661,7 @@ def main():
 
         logger.info(f"Creating podcast episode about: {topic}")
 
-        result = agent.create_podcast_episode(topic)
+        result = agent.create_podcast_episode(topic, output_dir="tmp")
 
         print("\n🎙️ Podcast Episode Created Successfully! 🎙️")
         print(f"Topic: {result['topic']}")

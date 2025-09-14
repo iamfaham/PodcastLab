@@ -12,6 +12,9 @@ wheels/
 # Environment variables
 .env
 
+# Streamlit secrets
+.streamlit/secrets.toml
+
 # Output directory
 output/
 output_old/
