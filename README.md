@@ -15,18 +15,47 @@ app_port: 7860
 
 ## Features
 
-- **AI-Generated Content**: Create engaging podcast scripts using Google's Gemini AI
+- **AI-Generated Content**: Create complete, end-to-end podcast scripts using Google's Gemini AI
+- **Google Search Grounding**: Access real-time, factual information with Google Search integration
 - **Visual Storytelling**: Generate custom podcast cover images with Google's Imagen
-- **Video Podcasts**: Create video podcasts using Google's Veo model
+- **Video Podcasts**: Create square video podcasts using Google's Veo model
 - **Professional Quality**: High-quality audio and video output
 - **Easy to Use**: Simple Streamlit interface for seamless podcast creation
+- **Source Citations**: Automatic citation generation for factual claims
 
 ## How to Use
 
 1. **Enter Your Topic**: Input any topic you want to create a podcast about
-2. **Configure Settings**: Choose the number of parts, duration, and other preferences
-3. **Generate Content**: Let AI create the script, images, and video content
-4. **Download Results**: Get your complete podcast package ready for publishing
+2. **Enable Search Grounding**: Toggle the "Use Google Search for factual data" option for current information
+3. **Configure Settings**: Choose the number of parts, duration, and other preferences
+4. **Generate Content**: Let AI create the script, images, and video content
+5. **Download Results**: Get your complete podcast package ready for publishing
+
+## Google Search Grounding
+
+The podcast agent now supports Google Search grounding, which allows Gemini to access real-time web information for more accurate and up-to-date content. When enabled:
+
+- **Real-time Information**: Get current facts and data about your topic
+- **Source Citations**: Automatic generation of citations for factual claims
+- **Search Queries**: See what search queries were used to gather information
+- **Source Links**: Access the original sources used in the podcast script
+
+This is particularly useful for topics involving:
+
+- Current events and news
+- Recent technological developments
+- Up-to-date statistics and data
+- Latest trends and developments
+
+## Script Structure
+
+Each podcast episode is generated as 3 complete segments:
+
+1. **Part 1 (Introduction)**: Welcome message, topic introduction, and what listeners will learn
+2. **Part 2 (Main Content)**: Key insights, facts, and detailed discussion with host interactions
+3. **Part 3 (Conclusion)**: Key takeaways, wrap-up, and call-to-action
+
+Each part is designed to feel like a complete segment of a real podcast episode with natural host conversations and smooth transitions.
 
 ## Requirements
 
@@ -53,6 +82,7 @@ Make sure to set the following environment variable in your Hugging Face Space:
 - **AI Models**: Google Gemini, Imagen, Veo
 - **Video Processing**: MoviePy
 - **Image Processing**: Pillow
+- **Aspect Ratio**: Square (1:1) for videos
 - **Deployment**: Docker on Hugging Face Spaces
 
 ## License

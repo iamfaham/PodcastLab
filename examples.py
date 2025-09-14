@@ -23,9 +23,64 @@ def example_basic_usage():
     print(f"🖼️ Image: {result['image_path']}")
     print(f"📝 Script: {result['script_path']}")
     print(f"🎬 Video: {result['video_path']}")
-    print(f"\n📋 Generated Script (3 parts, 24 seconds total):")
+    print(f"\n📋 Generated Script (3 parts, complete podcast segments):")
     for i, part in enumerate(result["script_parts"], 1):
-        print(f"\nPart {i} (8 seconds):\n{part[:100]}...")
+        part_names = ["Introduction", "Main Content", "Conclusion"]
+        print(f"\nPart {i} ({part_names[i-1]}):\n{part[:150]}...")
+    print("\n")
+
+
+def example_with_search_grounding():
+    """Example: Create a podcast episode with Google Search grounding for factual data."""
+    print("🔍 Example 2: With Google Search Grounding")
+    print("=" * 50)
+
+    agent = PodcastAgent()
+
+    # Use a topic that benefits from current information
+    topic = "Latest developments in AI and machine learning 2024"
+    result = agent.create_podcast_episode(topic, use_search=True)
+
+    print(f"✅ Created podcast episode about: {topic}")
+    print(f"📁 Files saved in: output/")
+    print(f"🖼️ Image: {result['image_path']}")
+    print(f"📝 Script: {result['script_path']}")
+    print(f"🎬 Video: {result['video_path']}")
+
+    # Display grounding metadata
+    grounding_metadata = result.get("grounding_metadata", {})
+    if grounding_metadata:
+        print(f"\n🔍 Search Grounding Information:")
+        if grounding_metadata.get("web_search_queries"):
+            print("Search queries used:")
+            for i, query in enumerate(grounding_metadata["web_search_queries"], 1):
+                print(f"  {i}. {query}")
+
+        if grounding_metadata.get("grounding_chunks"):
+            print(f"\nSources found: {len(grounding_metadata['grounding_chunks'])}")
+            for i, chunk in enumerate(grounding_metadata["grounding_chunks"][:3], 1):
+                # Handle GroundingChunk object attributes
+                if hasattr(chunk, "web"):
+                    web_info = chunk.web
+                    title = getattr(web_info, "title", "Unknown Title")
+                    print(f"  {i}. {title}")
+
+    print(f"\n📋 Generated Script (3 parts, complete podcast segments):")
+    for i, part in enumerate(result["script_parts"], 1):
+        part_names = ["Introduction", "Main Content", "Conclusion"]
+        print(f"\nPart {i} ({part_names[i-1]}):\n{part[:150]}...")
+
+    # Show script with citations
+    if grounding_metadata.get("grounding_supports"):
+        print(f"\n📄 Script with Citations:")
+        combined_script = "\n\n---PART---\n\n".join(result["script_parts"])
+        script_with_citations = agent.add_citations(combined_script, grounding_metadata)
+        print(
+            script_with_citations[:300] + "..."
+            if len(script_with_citations) > 300
+            else script_with_citations
+        )
+
     print("\n")
 
 
@@ -138,6 +193,7 @@ def main():
 
         # Run examples
         example_basic_usage()
+        example_with_search_grounding()
         example_custom_image_prompt()
         example_individual_components()
 

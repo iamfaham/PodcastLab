@@ -214,6 +214,13 @@ def main():
             help="Enter any topic you'd like to create a podcast episode about",
         )
 
+        # Search grounding toggle
+        use_search = st.checkbox(
+            "🔍 Use Google Search for factual data",
+            value=False,
+            help="Enable this to have Gemini search the web for current, factual information about your topic. This will make the podcast more accurate and up-to-date.",
+        )
+
         # Generate button
         generate_button = st.button(
             "🎬 Generate Podcast", type="primary", disabled=not topic.strip()
@@ -255,7 +262,9 @@ def main():
                     status_text.text("📝 Step 2/5: Generating 3-part podcast script...")
                     progress_bar.progress(30)
 
-                    script_parts = agent.generate_podcast_script(topic)
+                    script_parts, grounding_metadata = agent.generate_podcast_script(
+                        topic, use_search
+                    )
                     progress_bar.progress(40)
 
                     # Step 3: Generate 3 individual videos
@@ -343,12 +352,16 @@ def main():
 
                         # Display script parts
                         st.markdown(
-                            "#### 📝 Generated Script (3 parts, 24 seconds total)"
+                            "#### 📝 Generated Script (3 parts, complete podcast segments)"
                         )
 
                         # Create tabs for each script part
                         tab1, tab2, tab3 = st.tabs(
-                            ["Part 1 (8s)", "Part 2 (8s)", "Part 3 (8s)"]
+                            [
+                                "Part 1 (Intro)",
+                                "Part 2 (Main Content)",
+                                "Part 3 (Conclusion)",
+                            ]
                         )
 
                         with tab1:
@@ -387,6 +400,42 @@ def main():
                             disabled=True,
                             key="combined_script",
                         )
+
+                        # Display grounding metadata if search was used
+                        if use_search and grounding_metadata:
+                            st.markdown("#### 🔍 Search Sources & Citations")
+
+                            # Show search queries
+                            if grounding_metadata.get("web_search_queries"):
+                                st.markdown("**Search Queries Used:**")
+                                for i, query in enumerate(
+                                    grounding_metadata["web_search_queries"], 1
+                                ):
+                                    st.markdown(f"{i}. {query}")
+
+                            # Show sources
+                            if grounding_metadata.get("grounding_chunks"):
+                                st.markdown("**Sources Found:**")
+                                for i, chunk in enumerate(
+                                    grounding_metadata["grounding_chunks"], 1
+                                ):
+                                    # Handle GroundingChunk object attributes
+                                    if hasattr(chunk, "web"):
+                                        web_info = chunk.web
+                                        title = getattr(
+                                            web_info, "title", "Unknown Title"
+                                        )
+                                        uri = getattr(web_info, "uri", "")
+                                        if uri:
+                                            st.markdown(f"{i}. [{title}]({uri})")
+
+                            # Show script with citations
+                            if grounding_metadata.get("grounding_supports"):
+                                st.markdown("**Script with Citations:**")
+                                script_with_citations = agent.add_citations(
+                                    combined_script, grounding_metadata
+                                )
+                                st.markdown(script_with_citations)
 
                         # Display video
                         st.markdown("#### 🎬 Generated Video")

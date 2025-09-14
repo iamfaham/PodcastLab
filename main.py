@@ -81,32 +81,54 @@ class PodcastAgent:
             logger.error(f"Failed to generate podcast image: {e}")
             raise
 
-    def generate_podcast_script(self, topic: str) -> list[str]:
+    def generate_podcast_script(
+        self, topic: str, use_search: bool = False
+    ) -> tuple[list[str], dict]:
         """Generate a podcast script with 3 parts using Gemini.
 
         Args:
             topic: The topic for the podcast episode.
+            use_search: Whether to use Google Search grounding for factual data.
 
         Returns:
-            List of 3 script parts, each optimized for 8-second video segments.
+            Tuple of (List of 3 script parts, grounding metadata dict).
         """
         prompt = (
-            f"Write a VERY SHORT podcast script about '{topic}' with exactly 3 parts, each for 8-second video segments. "
-            f"Hosts are Alex (male) and Sarah (female). Each part should be 1-2 short sentences maximum. "
-            f"Format: 'Alex: [short line] Sarah: [short response]' for each part. "
-            f"Separate parts with '---PART---'. Keep it conversational but VERY brief - each part should be 15-20 words max. "
-            f"Example format:\n"
-            f"Alex: Welcome to TechTalk! Today we're discussing {topic}.\n"
-            f"Sarah: It's fascinating how this impacts our daily lives.\n"
+            f"Write a complete podcast script about '{topic}' with exactly 3 parts, each designed for 8-second video segments. "
+            f"Hosts are Alex (male) and Sarah (female). Create a full podcast experience with proper introduction, main content, and conclusion. "
+            f"Each part should be conversational and engaging, with natural host interactions and smooth transitions. "
+            f"Format: 'Alex: [dialogue] Sarah: [response]' for each part. "
+            f"Separate parts with '---PART---'. "
+            f"Include current, factual information when relevant. "
+            f"Make each part feel like a complete segment of a real podcast episode. "
+            f"Example structure:\n"
+            f"Part 1 (Introduction): Welcome, topic introduction, what listeners will learn\n"
+            f"Alex: Welcome to TechTalk! I'm Alex, and I'm here with Sarah.\n"
+            f"Sarah: Hey everyone! Today we're diving deep into {topic}.\n"
+            f"Alex: This is going to be fascinating because it affects all of us.\n"
+            f"Sarah: Absolutely! Let's break down what you need to know.\n"
             f"---PART---\n"
-            f"Alex: The key benefits are really impressive.\n"
-            f"Sarah: Absolutely, and the future looks even brighter.\n"
+            f"Part 2 (Main Content): Key insights, facts, and detailed discussion\n"
+            f"Alex: So here's what's really interesting about this topic...\n"
+            f"Sarah: That's a great point, and I think what's even more important is...\n"
+            f"Alex: Exactly! And when you consider the implications...\n"
+            f"Sarah: Right, which brings us to the next crucial aspect...\n"
             f"---PART---\n"
-            f"Alex: Thanks for joining us on this topic!\n"
-            f"Sarah: Stay tuned for more insights next time."
+            f"Part 3 (Conclusion): Key takeaways, wrap-up, and call-to-action\n"
+            f"Alex: So to summarize what we've learned today...\n"
+            f"Sarah: Those are some really important points to remember.\n"
+            f"Alex: Thanks for listening! What are your thoughts on this topic?\n"
+            f"Sarah: We'd love to hear from you! Until next time, keep learning!"
         )
 
-        logger.info(f"Generating 3-part podcast script for topic: {topic}")
+        logger.info(
+            f"Generating 3-part podcast script for topic: {topic} (search: {use_search})"
+        )
+
+        # Configure tools based on search preference
+        tools = []
+        if use_search:
+            tools.append(types.Tool(google_search=types.GoogleSearch()))
 
         try:
             response = self.client.models.generate_content(
@@ -115,6 +137,7 @@ class PodcastAgent:
                 config=types.GenerateContentConfig(
                     temperature=0.7,
                     max_output_tokens=600,
+                    tools=tools if tools else None,
                 ),
             )
 
@@ -158,14 +181,91 @@ class PodcastAgent:
 
             parts = cleaned_parts
 
+            # Extract grounding metadata if available
+            grounding_metadata = {}
+            if hasattr(response, "candidates") and response.candidates:
+                candidate = response.candidates[0]
+                if (
+                    hasattr(candidate, "grounding_metadata")
+                    and candidate.grounding_metadata
+                ):
+                    grounding_metadata = {
+                        "web_search_queries": getattr(
+                            candidate.grounding_metadata, "web_search_queries", []
+                        ),
+                        "grounding_chunks": getattr(
+                            candidate.grounding_metadata, "grounding_chunks", []
+                        ),
+                        "grounding_supports": getattr(
+                            candidate.grounding_metadata, "grounding_supports", []
+                        ),
+                    }
+
             logger.success(
                 f"Podcast script generated successfully: 3 parts, {sum(len(part) for part in parts)} total characters"
             )
-            return parts
+            return parts, grounding_metadata
 
         except Exception as e:
             logger.error(f"Failed to generate podcast script: {e}")
             raise
+
+    def add_citations(self, text: str, grounding_metadata: dict) -> str:
+        """Add inline citations to text based on grounding metadata.
+
+        Args:
+            text: The text to add citations to
+            grounding_metadata: Grounding metadata from Gemini response
+
+        Returns:
+            Text with inline citations added
+        """
+        if not grounding_metadata or not grounding_metadata.get("grounding_supports"):
+            return text
+
+        supports = grounding_metadata["grounding_supports"]
+        chunks = grounding_metadata.get("grounding_chunks", [])
+
+        # Sort supports by end_index in descending order to avoid shifting issues
+        sorted_supports = sorted(
+            supports,
+            key=lambda s: (
+                getattr(s.segment, "end_index", 0) if hasattr(s, "segment") else 0
+            ),
+            reverse=True,
+        )
+
+        for support in sorted_supports:
+            # Handle GroundingSupport object attributes
+            if hasattr(support, "segment") and hasattr(support.segment, "end_index"):
+                end_index = support.segment.end_index
+            else:
+                continue
+
+            if hasattr(support, "grounding_chunk_indices"):
+                chunk_indices = support.grounding_chunk_indices
+            else:
+                continue
+
+            if end_index is None or not chunk_indices:
+                continue
+
+            # Create citation links
+            citation_links = []
+            for i in chunk_indices:
+                if i < len(chunks):
+                    chunk = chunks[i]
+                    # Handle GroundingChunk object attributes
+                    if hasattr(chunk, "web") and hasattr(chunk.web, "uri"):
+                        uri = chunk.web.uri
+                        if uri:
+                            citation_links.append(f"[{i + 1}]({uri})")
+
+            if citation_links:
+                citation_string = ", ".join(citation_links)
+                text = text[:end_index] + citation_string + text[end_index:]
+
+        return text
 
     def generate_podcast_video(
         self,
@@ -189,7 +289,8 @@ class PodcastAgent:
             f"in a modern studio setting. The hosts are engaged in conversation about the following content: {script}. "
             f"Show natural gestures, professional lighting, microphones, and recording equipment. "
             f"Cinematic quality, smooth camera movement, realistic expressions and movements. "
-            f"Both hosts should look engaged and natural while speaking their lines."
+            f"Both hosts should look engaged and natural while speaking their lines. "
+            f"Create this video in square aspect ratio (1:1) format."
         )
 
         logger.info(
@@ -365,6 +466,7 @@ class PodcastAgent:
         topic: str,
         output_dir: str = "output",
         custom_image_prompt: Optional[str] = None,
+        use_search: bool = False,
     ) -> dict:
         """Create a complete podcast episode with image, script, and 3 combined videos.
 
@@ -372,6 +474,7 @@ class PodcastAgent:
             topic: The topic for the podcast episode.
             output_dir: Directory to save output files.
             custom_image_prompt: Optional custom prompt for image generation.
+            use_search: Whether to use Google Search grounding for factual data.
 
         Returns:
             Dictionary containing paths to generated files and metadata.
@@ -395,7 +498,9 @@ class PodcastAgent:
 
             # Step 2: Generate podcast script (3 parts)
             logger.info("Step 2/5: Generating 3-part podcast script...")
-            script_parts = self.generate_podcast_script(topic)
+            script_parts, grounding_metadata = self.generate_podcast_script(
+                topic, use_search
+            )
 
             # Save individual script parts
             script_paths = []
@@ -442,6 +547,7 @@ class PodcastAgent:
                 "video_path": combined_video_path,
                 "individual_video_paths": video_paths,
                 "script_content": combined_script,
+                "grounding_metadata": grounding_metadata,
             }
 
             logger.success(
