@@ -117,4 +117,4 @@ MIT License - feel free to use and modify for your projects!
 
 ---
 
-**Note**: This application requires a valid Google AI API key to function. The key is not included in the repository for security reasons.
+**Note**: This application requires a valid Google AI API key to function. The key is not included in the repository for security reasons. The cost may range between $5 to $9 per video creation. Use it at your own risk.
